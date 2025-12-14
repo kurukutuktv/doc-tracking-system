@@ -4,30 +4,33 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Spatie\Permission\Traits\HasRoles;
 
 class Document extends Model
 {
-    use HasFactory, HasRoles;
+    use HasFactory;
 
-    protected $fillable = [
-        'tracking_number',
-        'title',
-        'description',
-        'file_path',
-        'status',
-        'created_by',
-        'approved_by',
+    protected $guarded = ['id'];
+
+    protected $casts = [
+        'audience_users' => 'array',
+        'next_approver_ids' => 'array',
+        'acknowledged_by' => 'array',
+        'meta' => 'array',
     ];
 
-    // Relationships
+    // relationships
     public function creator()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function approver()
+    public function currentApprover()
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'current_approver_id');
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(DocumentLog::class);
     }
 }

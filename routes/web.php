@@ -36,9 +36,17 @@ Route::middleware(['auth'])->group(function () {
 });
 
 
-Route::get('/test-doc', function () {
-    return App\Models\Document::all();
+Route::middleware(['auth'])->group(function () {
+    Route::resource('documents', DocumentController::class);
+    Route::post('documents/{document}/acknowledge', [DocumentController::class, 'acknowledge'])->name('documents.acknowledge');
+    Route::post('documents/{document}/approve', [DocumentController::class, 'approve'])->name('documents.approve');
+    Route::post('documents/{document}/reject', [DocumentController::class, 'reject'])->name('documents.reject');
 });
+
+
+// Route::get('/test-doc', function () {
+//     return App\Models\Document::all();
+// });
 
 
 
