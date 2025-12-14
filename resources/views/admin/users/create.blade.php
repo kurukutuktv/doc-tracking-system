@@ -18,7 +18,7 @@
     <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded mb-4">
         <ul class="list-disc pl-5">
             @foreach($errors->all() as $error)
-                <li>{{ $error }}</li>
+            <li>{{ $error }}</li>
             @endforeach
         </ul>
     </div>
@@ -26,10 +26,52 @@
 
     <form action="{{ route('admin.users.store') }}" method="POST">
         @csrf
-        <div class="mb-4">
+        {{-- Name Fields --}}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+                <label class="block mb-1">Last Name</label>
+                <input type="text" name="last_name" class="border px-2 py-1 w-full"
+                    value="{{ old('last_name') }}" required>
+            </div>
+
+            <div>
+                <label class="block mb-1">First Name</label>
+                <input type="text" name="first_name" class="border px-2 py-1 w-full"
+                    value="{{ old('first_name') }}" required>
+            </div>
+
+            <div>
+                <label class="block mb-1">Middle Name</label>
+                <input type="text" name="middle_name" class="border px-2 py-1 w-full"
+                    value="{{ old('middle_name') }}">
+            </div>
+
+            <div>
+                <label class="block mb-1">Name Extension</label>
+                <select name="name_extension" class="border px-2 py-1 w-full">
+                    <option value="">None</option>
+                    @foreach(['Jr.', 'Sr.', 'II', 'III', 'IV'] as $ext)
+                    <option value="{{ $ext }}" {{ old('name_extension') === $ext ? 'selected' : '' }}>
+                        {{ $ext }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="md:col-span-2">
+                <label class="block mb-1">Post-nominal Titles</label>
+                <input type="text" name="post_nominals"
+                    placeholder="CPA, MSc, PhD"
+                    class="border px-2 py-1 w-full"
+                    value="{{ old('post_nominals') }}">
+                <p class="text-xs text-gray-500">Separate multiple titles with commas</p>
+            </div>
+        </div>
+
+        <!-- <div class="mb-4">
             <label class="block mb-1">Name</label>
             <input type="text" name="name" class="border px-2 py-1 w-full" value="{{ old('name') }}">
-        </div>
+        </div> -->
 
         <div class="mb-4">
             <label class="block mb-1">Email</label>
@@ -50,9 +92,9 @@
             <label class="block mb-1">Role</label>
             <select name="role" class="border px-2 py-1 w-full">
                 @foreach($roles as $role)
-                    <option value="{{ $role->id }}" {{ old('role') == $role->id ? 'selected' : '' }}>
-                        {{ $role->name }}
-                    </option>
+                <option value="{{ $role->id }}" {{ old('role') == $role->id ? 'selected' : '' }}>
+                    {{ $role->name }}
+                </option>
                 @endforeach
             </select>
         </div>

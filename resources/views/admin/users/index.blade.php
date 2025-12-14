@@ -75,7 +75,7 @@
                 @forelse($users as $user)
                 <tr class="hover:bg-gray-50">
                     <td class="border px-3 py-2">{{ $user->id }}</td>
-                    <td class="border px-3 py-2">{{ $user->name }}</td>
+                    <td class="border px-3 py-2">{{ $user->full_name }}</td>
                     <td class="border px-3 py-2">{{ $user->email }}</td>
                     <td class="border px-3 py-2">
                         @if($user->roles->count() > 0)

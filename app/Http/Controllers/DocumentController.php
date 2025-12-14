@@ -8,6 +8,9 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Gate;
+use Spatie\Permission\Models\Role;
+
 
 class DocumentController extends Controller
 {
@@ -39,7 +42,7 @@ class DocumentController extends Controller
     private function userCanSee(Document $document, $user): bool
     {
         // admin sees all
-        if (method_exists($user, 'hasRole') && $user->hasRole($user, 'admin')) {
+        if ($this->hasRole($user, 'admin')) {
             return true;
         }
 
@@ -76,25 +79,20 @@ class DocumentController extends Controller
         $user = Auth::user();
         if (!$user) abort(401);
 
-        $query = Document::query()->latest();
+        $query = Document::latest();
 
-        // ADMIN — sees all docs
+        // ADMIN → paginated
         if ($this->hasRole($user, 'admin')) {
             $documents = $query->paginate(12);
-        } else {
-            // non-admin must be filtered manually
-            $all = $query->get();
-
-            // filter using your visibility rules
-            $filtered = $all->filter(fn($doc) => $this->userCanSee($doc, $user));
-
-            // optional: paginate manually if needed, but returning the collection is okay for now
-            $documents = $filtered;
+        }
+        // NON-ADMIN → filtered visibility
+        else {
+            $documents = $query->get()
+                ->filter(fn($doc) => $this->userCanSee($doc, $user))
+                ->values();
         }
 
-        return view('documents.index', [
-            'documents' => $documents,
-        ]);
+        return view('documents.index', compact('documents'));
     }
 
 
@@ -102,12 +100,21 @@ class DocumentController extends Controller
     {
         $this->authorize('create', Document::class);
 
-        // users for audience & approver selection
-        $users = User::orderBy('name')->get();
+        // ALL users (for memo audience)
+        $users = User::orderBy('last_name')->get();
 
-        // pass to blade
-        return view('documents.create', compact('users'));
+        // ONLY approvers (for approval chain)
+        $approvers = User::whereHas('roles', function ($q) {
+            $q->where('is_approver', true);
+        })
+            ->orderBy('last_name')
+            ->get();
+
+        return view('documents.create', compact('users', 'approvers'));
     }
+
+
+
 
     public function store(Request $request)
     {
@@ -180,9 +187,17 @@ class DocumentController extends Controller
     public function edit(Document $document)
     {
         $this->authorize('update', $document);
-        $users = User::orderBy('name')->get();
-        return view('documents.edit', compact('document', 'users'));
+
+        $approvers = User::whereHas('roles', function ($q) {
+            $q->where('is_approver', true);
+        })
+            ->orderBy('last_name')
+            ->get();
+
+        return view('documents.edit', compact('document', 'approvers'));
     }
+
+
 
     public function update(Request $request, Document $document)
     {
@@ -262,41 +277,53 @@ class DocumentController extends Controller
         $user = Auth::user();
         if (!$user) abort(401);
 
+        // Ensure this document is for approval
         if (!$document->is_for_approval) {
             return back()->with('error', 'Document is not routed for approvals.');
         }
 
-        // check if user is permitted to approve (must be current approver)
+        // Ensure ONLY the current approver can approve
         if ($document->current_approver_id != $user->id) {
-            return back()->with('error', 'You are not the current approver for this document.');
+            return back()->with('error', 'You are not the current approver.');
         }
 
-        // perform approval: move to next approver or complete
-        $next = $document->next_approver_ids ?: [];
+        $next = $document->next_approver_ids ?? [];
 
+        // 👉 NOT FINAL APPROVER
         if (!empty($next)) {
-            $document->approved_level_1_by = $document->approved_level_1_by ?? ($user->id);
-            // move head
+
+            // Move to next approver
             $document->current_approver_id = array_shift($next);
             $document->next_approver_ids = $next;
             $document->status = 'in_review';
             $document->save();
 
-            $this->logMovement($document, "Approved by {$user->name}", ['next' => $document->current_approver_id]);
-            return back()->with('success', 'Approved and forwarded to next approver.');
-        } else {
-            // no next approvers — finalize
-            // set final approved field in sequence if you want (approved_level_3_by etc)
-            $document->approved_level_3_by = $user->id;
-            $document->current_approver_id = null;
-            $document->next_approver_ids = null;
-            $document->status = 'completed';
-            $document->save();
+            // ✅ THIS IS WHERE YOUR LINE GOES
+            $this->logMovement(
+                $document,
+                "Approved by {$user->name}",
+                ['next_approver_id' => $document->current_approver_id]
+            );
 
-            $this->logMovement($document, "Final approval by {$user->name}");
-            return back()->with('success', 'Document fully approved (completed).');
+            return back()->with('success', 'Approved and forwarded to next approver.');
         }
+
+        // 👉 FINAL APPROVER
+        $document->current_approver_id = null;
+        $document->next_approver_ids = null;
+        $document->status = 'completed';
+        $document->approved_level_3_by = $user->id;
+        $document->save();
+
+        // ✅ ALSO GOES HERE FOR FINAL APPROVAL
+        $this->logMovement(
+            $document,
+            "Final approval by {$user->name}"
+        );
+
+        return back()->with('success', 'Document fully approved.');
     }
+
 
     public function reject(Request $request, Document $document)
     {

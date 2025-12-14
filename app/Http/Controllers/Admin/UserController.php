@@ -12,98 +12,135 @@ class UserController extends Controller
 {
     public function __construct()
     {
-        $this->middleware(['auth', 'role:admin']); // only admins
+        $this->middleware(['auth', 'role:admin']);
     }
+
+    /* ---------- LIST ---------- */
 
     public function index(Request $request)
     {
         $roles = Role::all();
 
         $users = User::with('roles')
-            // Apply search filter
             ->when($request->search, function ($query, $search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
+                    $q->where('last_name', 'like', "%{$search}%")
+                        ->orWhere('first_name', 'like', "%{$search}%")
+                        ->orWhere('middle_name', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
                 });
             })
-            // Apply role filter
             ->when($request->role, function ($query, $roleId) {
-                $query->whereHas('roles', function ($q) use ($roleId) {
-                    $q->where('id', $roleId);
-                });
+                $query->whereHas('roles', fn($q) => $q->where('id', $roleId));
             })
-            ->latest()
-            ->paginate(10) // paginate AFTER filtering
-            ->withQueryString(); // keep query string on pagination links
+            ->orderBy('last_name')
+            ->paginate(10)
+            ->withQueryString();
 
         return view('admin.users.index', compact('users', 'roles'));
     }
 
+    /* ---------- CREATE ---------- */
 
     public function create()
     {
-        $roles = Role::all();
+        $roles = Role::orderBy('name')->get();
         return view('admin.users.create', compact('roles'));
     }
 
-    // Store
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $validated = $request->validate([
+            'last_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'name_extension' => 'nullable|string|max:20',
+            'post_nominals' => 'nullable|string|max:255',
+
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:8|confirmed',
             'role' => 'required|exists:roles,id',
         ]);
+        $fullName = trim(
+            "{$request->last_name}, {$request->first_name} {$request->middle_name} {$request->name_extension} {$request->post_nominals}"
+        );
 
         $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
+            'name' => $fullName,
+            'last_name' => $validated['last_name'],
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'name_extension' => $validated['name_extension'] ?? null,
+            'post_nominals' => $validated['post_nominals'] ?? null,
+
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
         ]);
 
-        $roleName = Role::findOrFail($request->role)->name;
-        $user->assignRole($roleName);
+        $role = Role::find($validated['role']);
+        $user->assignRole($role);
 
-        return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
+        return redirect()
+            ->route('admin.users.index')
+            ->with('success', 'User created successfully.');
     }
 
-    // Update
+    /* ---------- EDIT ---------- */
+
+    public function edit(User $user)
+    {
+        $roles = Role::orderBy('name')->get();
+        return view('admin.users.edit', compact('user', 'roles'));
+    }
+
     public function update(Request $request, User $user)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $validated = $request->validate([
+            'last_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'name_extension' => 'nullable|string|max:20',
+            'post_nominals' => 'nullable|string|max:255',
+
             'email' => 'required|email|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:8|confirmed',
             'role' => 'required|exists:roles,id',
         ]);
 
-        $user->name = $request->name;
-        $user->email = $request->email;
+        $user->update([
+            'last_name' => $validated['last_name'],
+            'first_name' => $validated['first_name'],
+            'middle_name' => $validated['middle_name'] ?? null,
+            'name_extension' => $validated['name_extension'] ?? null,
+            'post_nominals' => $validated['post_nominals'] ?? null,
+            'email' => $validated['email'],
+        ]);
 
-        if ($request->password) {
-            $user->password = Hash::make($request->password);
+        if (!empty($validated['password'])) {
+            $user->password = Hash::make($validated['password']);
+            $user->name = trim(
+                "{$request->last_name}, {$request->first_name} {$request->middle_name} {$request->name_extension} {$request->post_nominals}"
+            );
+
+            $user->save();
         }
 
-        $user->save();
+        $role = Role::find($validated['role']);
+        $user->syncRoles([$role]);
 
-        $roleName = Role::findOrFail($request->role)->name;
-        $user->syncRoles([$roleName]);
-
-        return redirect()->route('admin.users.index')->with('success', 'User updated successfully.');
+        return redirect()
+            ->route('admin.users.index')
+            ->with('success', 'User updated successfully.');
     }
 
-
-    public function edit(User $user)
-    {
-        $roles = Role::all();
-        return view('admin.users.edit', compact('user', 'roles'));
-    }
+    /* ---------- DELETE ---------- */
 
     public function destroy(User $user)
     {
         $user->delete();
-        return redirect()->route('admin.users.index')->with('success', 'User deleted successfully.');
+
+        return redirect()
+            ->route('admin.users.index')
+            ->with('success', 'User deleted successfully.');
     }
 }

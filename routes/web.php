@@ -43,6 +43,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('documents/{document}/reject', [DocumentController::class, 'reject'])->name('documents.reject');
 });
 
+Route::middleware(['auth', 'role:admin'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::resource('roles', \App\Http\Controllers\Admin\RoleController::class);
+    });
 
 // Route::get('/test-doc', function () {
 //     return App\Models\Document::all();

@@ -4,85 +4,92 @@ namespace App\Policies;
 
 use App\Models\Document;
 use App\Models\User;
-use Illuminate\Auth\Access\HandlesAuthorization;
 
 class DocumentPolicy
 {
-    use HandlesAuthorization;
-
     /**
-     * Determine whether the user can view any documents.
+     * Anyone logged in can create documents
      */
-    public function viewAny(User $user)
+    public function create(User $user): bool
     {
-        return $user->hasRole(['admin', 'approver', 'creator', 'viewer']);
+        return true; // admin + regular users
     }
 
     /**
-     * Determine whether the user can view the document.
+     * View document
      */
-    public function view(User $user, Document $document)
+    public function view(User $user, Document $document): bool
     {
-        // Admins see all
-        if ($user->hasRole('admin')) return true;
+        // Admin sees all
+        if ($user->hasRole('admin')) {
+            return true;
+        }
 
-        // Creator can see own
-        if ($user->hasRole('creator') && $document->created_by == $user->id) return true;
+        // Creator always sees
+        if ($document->created_by === $user->id) {
+            return true;
+        }
 
-        // Approver can see documents pending approval
-        if ($user->hasRole('approver') && $document->status == 'pending') return true;
+        // Memo visibility
+        if ($document->is_memo) {
+            if ($document->audience_type === 'all') return true;
+            if ($document->audience_type === 'users') {
+                return is_array($document->audience_users)
+                    && in_array($user->id, $document->audience_users);
+            }
+        }
 
-        // Viewers can see all approved documents
-        if ($user->hasRole('viewer') && $document->status == 'approved') return true;
+        // Approval visibility
+        if ($document->is_for_approval) {
+            if ($document->current_approver_id === $user->id) return true;
+            if (is_array($document->next_approver_ids)
+                && in_array($user->id, $document->next_approver_ids)) {
+                return true;
+            }
+        }
 
         return false;
     }
 
     /**
-     * Determine whether the user can create documents.
+     * Update
      */
-    public function create(User $user)
+    public function update(User $user, Document $document): bool
     {
-        return $user->hasRole(['admin', 'creator']);
-    }
-
-    /**
-     * Determine whether the user can update the document.
-     */
-    public function update(User $user, Document $document)
-    {
-        // Admins can update all
         if ($user->hasRole('admin')) return true;
 
-        // Creator can update own if not approved
-        return $user->hasRole('creator') && $document->created_by == $user->id && $document->status == 'pending';
+        // creator can edit only if not completed
+        return $document->created_by === $user->id
+            && !in_array($document->status, ['completed', 'rejected']);
     }
 
     /**
-     * Determine whether the user can delete the document.
+     * Delete
      */
-    public function delete(User $user, Document $document)
+    public function delete(User $user, Document $document): bool
     {
-        // Admins can delete all
         if ($user->hasRole('admin')) return true;
 
-        // Creator can delete own if not approved
-        return $user->hasRole('creator') && $document->created_by == $user->id && $document->status == 'pending';
+        return $document->created_by === $user->id
+            && !in_array($document->status, ['completed']);
     }
 
     /**
-     * Determine whether the user can approve the document.
+     * Approve
      */
-    public function approve(User $user, Document $document)
+    public function approve(User $user, Document $document): bool
     {
-        return $user->hasRole('approver') && $document->status == 'pending';
+        if ($user->hasRole('admin')) return true;
+
+        return $document->is_for_approval
+            && $document->current_approver_id === $user->id;
     }
 
     /**
-     * Determine whether the user can reject the document.
+     * Reject
      */
-    public function reject(User $user, Document $document)
+    public function reject(User $user, Document $document): bool
     {
-        return $user->hasRole('approver') && $document->status == 'pending';
+        return $this->approve($user, $document);
     }
 }
