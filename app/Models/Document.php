@@ -12,18 +12,30 @@ class Document extends Model
     protected $guarded = ['id'];
 
     protected $fillable = [
-        'target_department_id',
-        'current_approval_level',
+        'tracking_number',
+        'title',
+        'description',
+        'file_path',
+        'created_by',
+        'department_id',
+        'is_memo',
+        'is_for_approval',
+        'status',
+        'audience_type',
+        'audience_users',
         'current_approver_id',
+        'current_approval_level',
     ];
-
 
     protected $casts = [
         'audience_users' => 'array',
         'next_approver_ids' => 'array',
         'acknowledged_by' => 'array',
-        'meta' => 'array',
+        'is_memo' => 'boolean',
+        'is_for_approval' => 'boolean',
     ];
+
+
 
     // relationships
     public function creator()

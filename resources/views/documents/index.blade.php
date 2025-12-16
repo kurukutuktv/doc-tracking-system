@@ -1,72 +1,91 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container mx-auto p-4">
+<div class="container mx-auto p-4 max-w-7xl">
 
-    <div class="flex justify-between items-center mb-4">
-        <h1 class="text-2xl font-bold">Documents</h1>
+    {{-- Header --}}
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-semibold text-gray-800">Documents</h1>
+            <p class="text-sm text-gray-500">Manage uploaded documents and approvals</p>
+        </div>
 
         <a href="{{ route('documents.create') }}"
-           class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded">
-            + New Document
+           class="inline-flex items-center gap-2 bg-blue-500 hover:bg-blue-600
+                  text-white px-4 py-2 rounded-md text-sm shadow">
+            <span class="w-6 h-6 flex items-center justify-center bg-white rounded-full">
+                <svg class="w-3 h-3" stroke="black" fill="none" stroke-width="2"
+                     viewBox="0 0 24 24">
+                    <path d="M12 5v14M5 12h14"/>
+                </svg>
+            </span>
+            New Document
         </a>
     </div>
 
+    {{-- Success Message --}}
     @if(session('success'))
-        <div class="bg-green-100 text-green-700 px-4 py-2 rounded mb-4">
+        <div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded">
             {{ session('success') }}
         </div>
     @endif
 
-    <div class="bg-white shadow rounded overflow-x-auto">
-        <table class="min-w-full text-sm">
-            <thead class="bg-gray-100">
+    {{-- Table --}}
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-600">
                 <tr>
-                    <th class="px-3 py-2 text-left">Tracking #</th>
-                    <th class="px-3 py-2 text-left">Title</th>
-                    <th class="px-3 py-2 text-left">Type</th>
-                    <th class="px-3 py-2 text-left">Status</th>
-                    <th class="px-3 py-2 text-left">Current Approver</th>
-                    <th class="px-3 py-2 text-center">Action</th>
+                    <th class="px-4 py-3 text-left">Tracking #</th>
+                    <th class="px-4 py-3 text-left">Title</th>
+                    <th class="px-4 py-3 text-left">Type</th>
+                    <th class="px-4 py-3 text-left">Status</th>
+                    <th class="px-4 py-3 text-left">Created By</th>
+                    <th class="px-4 py-3 text-center">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+
+            <tbody class="divide-y">
                 @forelse($documents as $doc)
-                <tr class="border-t hover:bg-gray-50">
-                    <td class="px-3 py-2">{{ $doc->tracking_number }}</td>
-                    <td class="px-3 py-2">{{ $doc->title }}</td>
-                    <td class="px-3 py-2">
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 font-mono text-xs text-gray-500">
+                        {{ $doc->tracking_number }}
+                    </td>
+                    <td class="px-4 py-3 font-medium text-gray-800">
+                        {{ $doc->title }}
+                    </td>
+                    <td class="px-4 py-3 text-gray-600">
                         {{ $doc->is_memo ? 'Memo' : 'For Approval' }}
                     </td>
-                    <td class="px-3 py-2">
-                        <span class="px-2 py-1 rounded text-xs
-                            @if($doc->status === 'pending') bg-yellow-100 text-yellow-700
-                            @elseif($doc->status === 'in_review') bg-blue-100 text-blue-700
-                            @elseif($doc->status === 'completed') bg-green-100 text-green-700
-                            @elseif($doc->status === 'rejected') bg-red-100 text-red-700
-                            @endif">
-                            {{ ucfirst(str_replace('_',' ', $doc->status)) }}
-                        </span>
+                    <td class="px-4 py-3">
+                        @include('documents._status', ['status' => $doc->status])
                     </td>
-                    <td class="px-3 py-2">
-                        {{ $doc->currentApprover?->full_name ?? '—' }}
+                    <td class="px-4 py-3 text-gray-600">
+                        {{ $doc->creator?->full_name ?? '—' }}
                     </td>
-                    <td class="px-3 py-2 text-center">
+                    <td class="px-4 py-3 text-center">
                         <a href="{{ route('documents.show', $doc->id) }}"
-                           class="text-blue-600 hover:underline">
+                           class="text-blue-500 hover:text-blue-700 text-sm">
                             View
                         </a>
                     </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="6" class="text-center py-6 text-gray-500">
-                        No documents found.
+                    <td colspan="6" class="py-6 text-center text-gray-400">
+                        No documents found
                     </td>
                 </tr>
                 @endforelse
             </tbody>
         </table>
     </div>
+
+    {{-- Pagination --}}
+    @if(method_exists($documents, 'links'))
+    <div class="mt-6 flex justify-center">
+        {{ $documents->links() }}
+    </div>
+    @endif
+
 </div>
 @endsection

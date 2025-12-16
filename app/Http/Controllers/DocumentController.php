@@ -122,15 +122,17 @@ class DocumentController extends Controller
             : null;
 
         $document = Document::create([
-            'tracking_number' => 'DOC-' . strtoupper(Str::random(6)) . '-' . time(),
-            'title' => $validated['title'],
-            'description' => $validated['description'],
+            'tracking_number' => "DOC-" . strtoupper(Str::random(6)) . "-" . time(),
+            'title' => $request->title,
+            'description' => $request->description,
             'file_path' => $filePath,
             'created_by' => Auth::id(),
-            'department_id' => $validated['target_department_id'],
-            'is_memo' => $validated['doc_type'] === 'memo',
-            'is_for_approval' => $validated['doc_type'] === 'approval',
-            'status' => $validated['doc_type'] === 'memo' ? 'information' : 'pending',
+            'department_id' => $request->target_department_id, // ✅ REQUIRED
+            'is_memo' => $request->doc_type === 'memo',
+            'is_for_approval' => $request->doc_type === 'approval',
+            'status' => $request->doc_type === 'memo'
+                ? 'information'
+                : 'pending',
         ]);
 
         /* ---------- MEMO ---------- */
