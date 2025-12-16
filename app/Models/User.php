@@ -15,7 +15,7 @@ use Illuminate\Foundation\Auth\Access\Authorizable;
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasRoles, Authorizable;
+    use HasFactory, Notifiable, Authorizable, HasRoles;
 
     /**
      * The attributes that are mass assignable.
@@ -117,5 +117,9 @@ class User extends Authenticatable
         }
 
         return strtoupper($name);
+    }
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
     }
 }

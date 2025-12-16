@@ -42,8 +42,10 @@ class DocumentPolicy
         // Approval visibility
         if ($document->is_for_approval) {
             if ($document->current_approver_id === $user->id) return true;
-            if (is_array($document->next_approver_ids)
-                && in_array($user->id, $document->next_approver_ids)) {
+            if (
+                is_array($document->next_approver_ids)
+                && in_array($user->id, $document->next_approver_ids)
+            ) {
                 return true;
             }
         }
@@ -77,13 +79,13 @@ class DocumentPolicy
     /**
      * Approve
      */
-    public function approve(User $user, Document $document): bool
+    public function approve(User $user, Document $document)
     {
-        if ($user->hasRole('admin')) return true;
-
-        return $document->is_for_approval
-            && $document->current_approver_id === $user->id;
+        return
+            $user->hasRole('admin') ||
+            $document->current_approver_id == $user->id;
     }
+
 
     /**
      * Reject

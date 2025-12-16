@@ -11,6 +11,13 @@ class Document extends Model
 
     protected $guarded = ['id'];
 
+    protected $fillable = [
+        'target_department_id',
+        'current_approval_level',
+        'current_approver_id',
+    ];
+
+
     protected $casts = [
         'audience_users' => 'array',
         'next_approver_ids' => 'array',
@@ -28,6 +35,12 @@ class Document extends Model
     {
         return $this->belongsTo(User::class, 'current_approver_id');
     }
+
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+
 
     public function logs()
     {

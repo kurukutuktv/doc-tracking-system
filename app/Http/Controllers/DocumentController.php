@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
+use Illuminate\Support\Facades\Auth;
+use App\Models\ApprovalHierarchy;
+use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentLog;
-use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Gate;
-use Spatie\Permission\Models\Role;
-
 
 class DocumentController extends Controller
 {
@@ -19,15 +18,13 @@ class DocumentController extends Controller
         $this->middleware('auth');
     }
 
-    /**
-     * Safe role checker
-     */
-    private function hasRole($user, $role)
+    /* =========================
+     * HELPERS
+     * ========================= */
+    private function isAdmin(User $user): bool
     {
-        return $user && method_exists($user, 'hasRole') && $user->hasRole($role);
+        return $user->hasRole('admin');
     }
-
-    /* ---------- Helpers ---------- */
 
     private function logMovement(Document $document, string $action, array $meta = [])
     {
@@ -39,55 +36,42 @@ class DocumentController extends Controller
         ]);
     }
 
-    private function userCanSee(Document $document, $user): bool
+    private function userCanSee(Document $document, User $user): bool
     {
-        // admin sees all
-        if ($this->hasRole($user, 'admin')) {
-            return true;
-        }
+        if ($user->hasRole('admin')) return true;
 
-        // creator can always see
-        if ($document->created_by == $user->id) {
-            return true;
-        }
+        if ($document->created_by === $user->id) return true;
 
-        // memo visibility
         if ($document->is_memo) {
             if ($document->audience_type === 'all') return true;
-            if ($document->audience_type === 'users' && is_array($document->audience_users)) {
-                return in_array($user->id, $document->audience_users);
+            if ($document->audience_type === 'users') {
+                return in_array($user->id, $document->audience_users ?? []);
             }
-            // department logic omitted: implement if departments exist
-            return false;
         }
 
-        // approval visibility: current approver or future approver can see, or creator
         if ($document->is_for_approval) {
-            if ($document->current_approver_id && $document->current_approver_id == $user->id) return true;
-            if (is_array($document->next_approver_ids) && in_array($user->id, $document->next_approver_ids)) return true;
-            return false;
+            return $document->current_approver_id === $user->id;
         }
 
-        // fallback
         return false;
     }
 
-    /* ---------- CRUD & Listing ---------- */
+    /* =========================
+     * INDEX
+     * ========================= */
 
-    public function index(Request $request)
+    public function index()
     {
         $user = Auth::user();
         if (!$user) abort(401);
 
-        $query = Document::latest();
-
-        // ADMIN → paginated
-        if ($this->hasRole($user, 'admin')) {
-            $documents = $query->paginate(12);
-        }
-        // NON-ADMIN → filtered visibility
-        else {
-            $documents = $query->get()
+        if ($this->isAdmin($user)) {
+            // Admin sees everything (paginated)
+            $documents = Document::latest()->paginate(10);
+        } else {
+            // Non-admin sees ONLY allowed documents
+            $documents = Document::latest()
+                ->get()
                 ->filter(fn($doc) => $this->userCanSee($doc, $user))
                 ->values();
         }
@@ -96,248 +80,185 @@ class DocumentController extends Controller
     }
 
 
+    /* =========================
+     * CREATE
+     * ========================= */
+
     public function create()
     {
         $this->authorize('create', Document::class);
 
-        // ALL users (for memo audience)
         $users = User::orderBy('last_name')->get();
+        $departments = Department::orderBy('name')->get();
+        $userDepartmentId = Auth::user()->department_id;
 
-        // ONLY approvers (for approval chain)
-        $approvers = User::whereHas('roles', function ($q) {
-            $q->where('is_approver', true);
-        })
-            ->orderBy('last_name')
-            ->get();
-
-        return view('documents.create', compact('users', 'approvers'));
+        return view('documents.create', compact(
+            'users',
+            'departments',
+            'userDepartmentId'
+        ));
     }
 
-
-
+    /* =========================
+     * STORE
+     * ========================= */
 
     public function store(Request $request)
     {
         $this->authorize('create', Document::class);
 
-        $request->validate([
+        $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
             'file' => 'nullable|file|max:20480',
             'doc_type' => 'required|in:memo,approval',
-            'audience_type' => 'nullable|in:all,users,department',
+            'audience_type' => 'nullable|in:all,users',
             'audience_users' => 'nullable|array',
-            'approval_chain' => 'nullable|array',
-            'approval_chain.*' => 'nullable|exists:users,id',
+            'target_department_id' => 'required|exists:departments,id',
         ]);
 
-        $filePath = $request->file('file') ? $request->file('file')->store('documents') : null;
+        $filePath = $request->file('file')
+            ? $request->file('file')->store('documents')
+            : null;
 
-        $doc = Document::create([
-            'tracking_number' => "DOC-" . strtoupper(Str::random(6)) . "-" . time(),
-            'title' => $request->title,
-            'description' => $request->description,
+        $document = Document::create([
+            'tracking_number' => 'DOC-' . strtoupper(Str::random(6)) . '-' . time(),
+            'title' => $validated['title'],
+            'description' => $validated['description'],
             'file_path' => $filePath,
             'created_by' => Auth::id(),
-            'is_memo' => $request->doc_type === 'memo',
-            'is_for_approval' => $request->doc_type === 'approval',
-            'status' => $request->doc_type === 'memo' ? 'information' : 'pending',
+            'department_id' => $validated['target_department_id'],
+            'is_memo' => $validated['doc_type'] === 'memo',
+            'is_for_approval' => $validated['doc_type'] === 'approval',
+            'status' => $validated['doc_type'] === 'memo' ? 'information' : 'pending',
         ]);
 
-        // Handle memo audience
-        if ($request->doc_type === 'memo') {
-            $doc->audience_type = $request->audience_type ?? 'all';
-            if ($request->audience_type === 'users') {
-                $doc->audience_users = $request->audience_users ?: [];
-            }
-            $doc->save();
-            $this->logMovement($doc, 'Memo created and published');
+        /* ---------- MEMO ---------- */
+        if ($document->is_memo) {
+            $document->audience_type = $validated['audience_type'] ?? 'all';
+            $document->audience_users = $validated['audience_users'] ?? [];
+            $document->save();
+
+            $this->logMovement($document, 'Memo published');
         }
 
-        // Handle approval chain
-        if ($request->doc_type === 'approval') {
-            $chain = $request->approval_chain ?: [];
-            $chain = array_values(array_filter($chain)); // remove empty
-            if (!empty($chain)) {
-                $doc->current_approver_id = $chain[0];
-                $doc->next_approver_ids = array_slice($chain, 1);
-                $doc->status = 'pending';
-                $doc->save();
+        /* ---------- APPROVAL ---------- */
+        if ($document->is_for_approval) {
 
-                $this->logMovement($doc, 'Document submitted for approval', ['chain' => $chain]);
-            } else {
-                // no chain provided — treat as pending but notify admin
-                $this->logMovement($doc, 'Document submitted for approval (no chain)');
+            $hierarchy = ApprovalHierarchy::where('department_id', $document->department_id)
+                ->orderBy('level')
+                ->get();
+
+            if ($hierarchy->isEmpty()) {
+                return back()->with('error', 'No approval hierarchy configured.');
             }
+
+            $firstLevel = $hierarchy->first();
+
+            $firstApprover = User::whereHas('roles', function ($q) use ($firstLevel) {
+                $q->where('id', $firstLevel->role_id);
+            })->first();
+
+            if (!$firstApprover) {
+                return back()->with('error', 'No approver assigned for first level.');
+            }
+
+            $document->current_approver_id = $firstApprover->id;
+            $document->current_approval_level = 1;
+            $document->save();
+
+            $this->logMovement($document, 'Submitted for approval', [
+                'level' => 1,
+                'role' => $firstLevel->role->name,
+            ]);
         }
 
-        return redirect()->route('documents.index')->with('success', 'Document saved.');
+        return redirect()->route('documents.index')
+            ->with('success', 'Document created successfully.');
     }
+
+    /* =========================
+     * SHOW
+     * ========================= */
 
     public function show(Document $document)
     {
         $this->authorize('view', $document);
 
-        // load logs + creator + current approver
-        $document->load('logs.user', 'creator', 'currentApprover');
+        $document->load(['creator', 'logs.user', 'currentApprover']);
 
         return view('documents.show', compact('document'));
     }
 
-    public function edit(Document $document)
-    {
-        $this->authorize('update', $document);
+    /* =========================
+     * APPROVE
+     * ========================= */
 
-        $approvers = User::whereHas('roles', function ($q) {
-            $q->where('is_approver', true);
-        })
-            ->orderBy('last_name')
-            ->get();
-
-        return view('documents.edit', compact('document', 'approvers'));
-    }
-
-
-
-    public function update(Request $request, Document $document)
-    {
-        $this->authorize('update', $document);
-
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'file' => 'nullable|file|max:20480',
-            'doc_type' => 'required|in:memo,approval',
-            'audience_type' => 'nullable|in:all,users,department',
-            'audience_users' => 'nullable|array',
-            'approval_chain' => 'nullable|array',
-            'approval_chain.*' => 'nullable|exists:users,id',
-        ]);
-
-        if ($request->hasFile('file')) {
-            $document->file_path = $request->file('file')->store('documents');
-        }
-
-        $document->title = $request->title;
-        $document->description = $request->description;
-        $document->is_memo = $request->doc_type === 'memo';
-        $document->is_for_approval = $request->doc_type === 'approval';
-
-        if ($request->doc_type === 'memo') {
-            $document->audience_type = $request->audience_type ?? 'all';
-            $document->audience_users = $request->audience_users ?: null;
-            $document->status = 'information';
-        } else {
-            $chain = $request->approval_chain ?: [];
-            $chain = array_values(array_filter($chain));
-            $document->current_approver_id = $chain[0] ?? null;
-            $document->next_approver_ids = array_slice($chain, 1);
-            $document->status = 'pending';
-        }
-
-        $document->save();
-        $this->logMovement($document, 'Document updated');
-
-        return redirect()->route('documents.show', $document->id)->with('success', 'Document updated.');
-    }
-
-    public function destroy(Document $document)
-    {
-        $this->authorize('delete', $document);
-        $document->delete();
-        $this->logMovement($document, 'Document deleted');
-        return redirect()->route('documents.index')->with('success', 'Document removed.');
-    }
-
-    /* ---------- Acknowledge & Approval Flow ---------- */
-
-    public function acknowledge(Document $document)
+    public function approve(Document $document)
     {
         $user = Auth::user();
-        if (!$user) abort(401);
 
-        // only memos audience can acknowledge
-        if (!$document->is_memo) {
-            return back()->with('error', 'This document is not an announcement.');
-        }
-
-        $ack = $document->acknowledged_by ?: [];
-        if (!in_array($user->id, $ack)) {
-            $ack[] = $user->id;
-            $document->acknowledged_by = $ack;
-            $document->save();
-            $this->logMovement($document, "Acknowledged by {$user->name}");
-        }
-
-        return back()->with('success', 'Acknowledged.');
-    }
-
-    public function approve(Request $request, Document $document)
-    {
-        $user = Auth::user();
-        if (!$user) abort(401);
-
-        // Ensure this document is for approval
         if (!$document->is_for_approval) {
-            return back()->with('error', 'Document is not routed for approvals.');
+            return back()->with('error', 'Not an approval document.');
         }
 
-        // Ensure ONLY the current approver can approve
-        if ($document->current_approver_id != $user->id) {
+        if ($document->current_approver_id !== $user->id) {
             return back()->with('error', 'You are not the current approver.');
         }
 
-        $next = $document->next_approver_ids ?? [];
+        $hierarchy = ApprovalHierarchy::where('department_id', $document->department_id)
+            ->orderBy('level')
+            ->get();
 
-        // 👉 NOT FINAL APPROVER
-        if (!empty($next)) {
+        $nextLevel = $hierarchy->firstWhere(
+            'level',
+            $document->current_approval_level + 1
+        );
 
-            // Move to next approver
-            $document->current_approver_id = array_shift($next);
-            $document->next_approver_ids = $next;
+        if ($nextLevel) {
+            $nextApprover = User::whereHas('roles', function ($q) use ($nextLevel) {
+                $q->where('id', $nextLevel->role_id);
+            })->first();
+
+            if (!$nextApprover) {
+                return back()->with('error', 'Next approver not found.');
+            }
+
+            $document->current_approval_level++;
+            $document->current_approver_id = $nextApprover->id;
             $document->status = 'in_review';
             $document->save();
 
-            // ✅ THIS IS WHERE YOUR LINE GOES
-            $this->logMovement(
-                $document,
-                "Approved by {$user->name}",
-                ['next_approver_id' => $document->current_approver_id]
-            );
+            $this->logMovement($document, "Approved by {$user->name}");
 
-            return back()->with('success', 'Approved and forwarded to next approver.');
+            return back()->with('success', 'Approved and forwarded.');
         }
 
-        // 👉 FINAL APPROVER
-        $document->current_approver_id = null;
-        $document->next_approver_ids = null;
+        /* ---------- FINAL APPROVAL ---------- */
         $document->status = 'completed';
-        $document->approved_level_3_by = $user->id;
+        $document->current_approver_id = null;
         $document->save();
 
-        // ✅ ALSO GOES HERE FOR FINAL APPROVAL
-        $this->logMovement(
-            $document,
-            "Final approval by {$user->name}"
-        );
+        $this->logMovement($document, "Final approval by {$user->name}");
 
         return back()->with('success', 'Document fully approved.');
     }
 
+    /* =========================
+     * REJECT
+     * ========================= */
 
-    public function reject(Request $request, Document $document)
+    public function reject(Document $document)
     {
         $user = Auth::user();
-        if (!$user) abort(401);
 
-        // only current approver can reject (or admins via policy)
-        if ($document->current_approver_id != $user->id && !(method_exists($user, 'hasRole') && $this->hasRole($user, 'admin'))) {
-            return back()->with('error', 'You are not authorized to reject this document.');
+        if (!$user) {
+            abort(401);
         }
+
 
         $document->status = 'rejected';
         $document->current_approver_id = null;
-        $document->next_approver_ids = null;
         $document->save();
 
         $this->logMovement($document, "Rejected by {$user->name}");
