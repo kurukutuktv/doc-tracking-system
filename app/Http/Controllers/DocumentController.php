@@ -60,24 +60,35 @@ class DocumentController extends Controller
      * INDEX
      * ========================= */
 
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
-        if (!$user) abort(401);
 
-        if ($this->isAdmin($user)) {
-            // Admin sees everything (paginated)
-            $documents = Document::latest()->paginate(10);
-        } else {
-            // Non-admin sees ONLY allowed documents
-            $documents = Document::latest()
-                ->get()
-                ->filter(fn($doc) => $this->userCanSee($doc, $user))
-                ->values();
+        $query = Document::with(['department', 'creator', 'currentApprover'])->latest();
+
+        // Department filter
+        if ($request->filled('department_id')) {
+            $query->where('department_id', $request->department_id);
         }
 
-        return view('documents.index', compact('documents'));
+        // Status filter
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+        if (!$this->isAdmin($user)) {
+            $documents = $query->get()
+                ->filter(fn($doc) => $this->userCanSee($doc, $user))
+                ->values();
+        } else {
+            $documents = $query->paginate(10);
+        }
+
+        $departments = Department::orderBy('name')->get();
+
+        return view('documents.index', compact('documents', 'departments'));
     }
+
 
 
     /* =========================
@@ -266,5 +277,31 @@ class DocumentController extends Controller
         $this->logMovement($document, "Rejected by {$user->name}");
 
         return back()->with('success', 'Document rejected.');
+    }
+    /* =========================
+     * ACKNOWLEDGE
+     * ========================= */
+
+    public function acknowledge(Document $document)
+    {
+        $user = Auth::user();
+
+        if (!$document->is_memo) {
+            return back()->with('error', 'Not a memo.');
+        }
+
+        if (!$this->userCanSee($document, $user)) {
+            abort(403);
+        }
+
+        if ($document->isAcknowledgedBy($user->id)) {
+            return back();
+        }
+
+        $document->acknowledge($user->id);
+
+        $this->logMovement($document, 'Acknowledged');
+
+        return back()->with('success', 'Memo acknowledged.');
     }
 }

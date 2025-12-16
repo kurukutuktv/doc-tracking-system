@@ -59,17 +59,19 @@
             </div>
         </div>
         {{-- Department Selection --}}
-        <div>
-            <label class="block mb-1 font-medium">Target Department</label>
-            <select name="target_department_id" class="border px-3 py-2 w-full rounded" required>
-                @foreach($departments as $dept)
-                <option value="{{ $dept->id }}"
-                    {{ $dept->id == $userDepartmentId ? 'selected' : '' }}>
-                    {{ $dept->name }}
-                </option>
-                @endforeach
-            </select>
-        </div>
+        <select name="target_department_id"
+            class="border px-3 py-2 w-full rounded" required>
+
+            <option value="">All Departments</option>
+
+            @foreach($departments as $dept)
+            <option value="{{ $dept->id }}"
+                {{ $dept->id == $userDepartmentId ? 'selected' : '' }}>
+                {{ $dept->name }}
+            </option>
+            @endforeach
+        </select>
+
 
         {{-- Approval Info --}}
         <div id="approval-options" class=" space-y-3 border-t pt-4">
@@ -102,6 +104,10 @@
                 Save
             </button>
         </div>
+        {{-- Success Message --}}
+        @if(session('success'))
+        <x-alert type="success">{{ session('success') }}</x-alert>
+        @endif
     </form>
 </div>
 

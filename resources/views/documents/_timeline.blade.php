@@ -1,11 +1,14 @@
 @props(['logs'])
-<div class="space-y-2">
-    @forelse($logs as $log)
-        <div class="border-l-4 border-blue-400 pl-3">
-            <p class="text-sm font-semibold">{{ $log->action }}</p>
-            <p class="text-xs text-gray-500">{{ $log->created_at->format('M d, Y h:i A') }} • {{ $log->user->name ?? 'System' }}</p>
+<div class="space-y-3">
+    @foreach($logs as $log)
+        <div class="flex gap-3">
+            <div class="w-2 h-2 mt-2 bg-sky-400 rounded-full"></div>
+            <div>
+                <p class="text-sm text-gray-700 font-medium">{{ $log->action }}</p>
+                <p class="text-xs text-gray-400">
+                    {{ $log->created_at->format('M d, Y h:i A') }}
+                </p>
+            </div>
         </div>
-    @empty
-        <p class="text-gray-500 italic">No activity yet.</p>
-    @endforelse
+    @endforeach
 </div>

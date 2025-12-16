@@ -31,8 +31,9 @@ class User extends Authenticatable
         'post_nominals',
         'email',
         'password',
+        'department_id',
+        'approval_level',
     ];
-
 
     /**
      * The attributes that should be hidden for serialization.

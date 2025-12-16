@@ -58,4 +58,20 @@ class Document extends Model
     {
         return $this->hasMany(DocumentLog::class);
     }
+
+    public function isAcknowledgedBy($userId): bool
+    {
+        return in_array($userId, $this->acknowledged_by ?? []);
+    }
+
+    public function acknowledge($userId)
+    {
+        $list = $this->acknowledged_by ?? [];
+
+        if (!in_array($userId, $list)) {
+            $list[] = $userId;
+            $this->acknowledged_by = $list;
+            $this->save();
+        }
+    }
 }

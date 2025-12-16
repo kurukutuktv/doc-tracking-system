@@ -17,10 +17,10 @@
         </div>
 
         @if($document->file_path)
-            <a href="{{ Storage::url($document->file_path) }}"
-               target="_blank" class="text-blue-600 underline">
-                Open Attachment
-            </a>
+        <a href="{{ Storage::url($document->file_path) }}"
+            target="_blank" class="text-blue-600 underline">
+            Open Attachment
+        </a>
         @endif
 
         {{-- APPROVAL ACTIONS --}}
@@ -37,15 +37,30 @@
             </form>
         </div>
         @endif
-
+        @if(
+        $document->is_memo &&
+        !$document->isAcknowledgedBy(auth()->id())
+        )
         <hr>
-
+        <form method="POST" action="{{ route('documents.acknowledge', $document->id) }}">
+            @csrf
+            <button
+                class="mt-3 inline-flex items-center gap-2
+               bg-emerald-50 text-emerald-700
+               border border-emerald-200
+               px-4 py-2 rounded-lg
+               hover:bg-emerald-100 transition">
+                ✔ Acknowledge
+            </button>
+        </form>
+        @endif
+        <hr>
         <h2 class="font-semibold">Timeline</h2>
         @foreach($document->logs as $log)
-            <div class="text-sm text-gray-600">
-                {{ $log->created_at->format('M d, Y H:i') }} —
-                {{ $log->action }}
-            </div>
+        <div class="text-sm text-gray-600">
+            {{ $log->created_at->format('M d, Y H:i') }} —
+            {{ $log->action }}
+        </div>
         @endforeach
 
     </div>
