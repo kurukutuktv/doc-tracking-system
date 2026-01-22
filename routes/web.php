@@ -86,4 +86,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/attachments/{attachment}/preview', [DocumentFileController::class, 'preview'])
         ->name('attachments.preview')
         ->middleware('auth');
+        
 });
+
+require __DIR__.'/auth.php';
+
