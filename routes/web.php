@@ -5,6 +5,9 @@ use App\Http\Controllers\Admin\IncomingDocumentController;
 use App\Http\Controllers\Admin\OutgoingDocumentController;
 use App\Http\Controllers\Office\DocumentInboxController;
 use App\Http\Controllers\DocumentFileController;
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Office\OfficeDashboardController;
+use App\Http\Controllers\Admin\UserManagementController;
 
 /*
 |--------------------------------------------------------------------------
@@ -12,6 +15,18 @@ use App\Http\Controllers\DocumentFileController;
 |--------------------------------------------------------------------------
 |--------------------------------------------------------------------------
 */
+
+
+
+Route::get('/ping', function () {
+    return 'Laravel is alive';
+});
+
+// Route::get('/', function () {
+//     return redirect()->route('login');
+// });
+
+
 
 Route::middleware(['auth'])->group(function () {
 
@@ -86,8 +101,26 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/attachments/{attachment}/preview', [DocumentFileController::class, 'preview'])
         ->name('attachments.preview')
         ->middleware('auth');
-        
+});
+Route::middleware(['auth'])->prefix('admin')->group(function () {
+
+    Route::get('/users', [UserManagementController::class, 'index'])
+        ->name('admin.users.index');
+
+    Route::get('/users/create', [UserManagementController::class, 'create'])
+        ->name('admin.users.create');
+
+    Route::post('/users', [UserManagementController::class, 'store'])
+        ->name('admin.users.store');
 });
 
-require __DIR__.'/auth.php';
+Route::middleware(['auth'])->group(function () {
 
+    Route::get('/admin/dashboard', [AdminDashboardController::class, 'index'])
+        ->name('admin.dashboard');
+
+    Route::get('/office/dashboard', [OfficeDashboardController::class, 'index'])
+        ->name('office.dashboard');
+});
+
+require __DIR__ . '/auth.php';

@@ -1,4 +1,7 @@
-@extends('layouts.app')
+<!-- @extends('layouts.app') -->
+<x-app-layout>
+    <h1 class="text-2xl font-bold">Admin Dashboard</h1>
+</x-app-layout>
 
 @section('content')
 <div class="container mx-auto p-4">

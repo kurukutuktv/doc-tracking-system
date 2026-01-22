@@ -1,22 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+
 <head>
-    <meta charset="UTF-8">
-    <title>Document Tracking System</title>
-    @vite('resources/css/app.css')
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{{ config('app.name', 'Laravel') }}</title>
+
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body class="bg-gray-100">
 
-<nav class="bg-blue-900 text-white p-4">
-    <div class="container mx-auto flex justify-between">
-        <span class="font-bold">Document Tracking System</span>
-        <span>{{ auth()->user()->name }}</span>
-    </div>
-</nav>
+<body class="font-sans antialiased bg-gray-100">
 
-<main class="container mx-auto p-6">
-    @yield('content')
-</main>
+    @include('layouts.navigation')
+
+    <main class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {{ $slot }}
+    </main>
 
 </body>
+
 </html>
