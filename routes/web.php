@@ -1,59 +1,89 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\DocumentController;
-use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Admin\IncomingDocumentController;
+use App\Http\Controllers\Admin\OutgoingDocumentController;
+use App\Http\Controllers\Office\DocumentInboxController;
+use App\Http\Controllers\DocumentFileController;
 
-// USER AUTH ROUTES
-Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::resource('users', UserController::class);
-});
-
-Route::get('/', function () {
-    return view('welcome');
-});
-
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
-
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
-
-// DOCUMENT ROUTES
-Route::middleware(['auth'])->group(function () {
-    Route::resource('documents', DocumentController::class);
-
-    Route::post('documents/{document}/approve', [DocumentController::class, 'approve'])
-        ->name('documents.approve');
-
-    Route::post('documents/{document}/reject', [DocumentController::class, 'reject'])
-        ->name('documents.reject');
-});
-
+/*
+|--------------------------------------------------------------------------
+| Authenticated Routes
+|--------------------------------------------------------------------------
+|--------------------------------------------------------------------------
+*/
 
 Route::middleware(['auth'])->group(function () {
-    Route::resource('documents', DocumentController::class);
-    Route::post('documents/{document}/acknowledge', [DocumentController::class, 'acknowledge'])->name('documents.acknowledge');
-    Route::post('documents/{document}/approve', [DocumentController::class, 'approve'])->name('documents.approve');
-    Route::post('documents/{document}/reject', [DocumentController::class, 'reject'])->name('documents.reject');
-});
 
-Route::middleware(['auth', 'role:admin'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::resource('roles', \App\Http\Controllers\Admin\RoleController::class);
+    /*
+    |--------------------------------------------------------------------------
+    | ADMIN — INCOMING DOCUMENTS
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('admin/incoming')->group(function () {
+        Route::post('/', [IncomingDocumentController::class, 'store'])
+            ->name('admin.incoming.store');
+
+        Route::post('{document}/log', [IncomingDocumentController::class, 'log'])
+            ->name('admin.incoming.log');
+
+        Route::post('{document}/forward', [IncomingDocumentController::class, 'forward'])
+            ->name('admin.incoming.forward');
     });
 
-// Route::get('/test-doc', function () {
-//     return App\Models\Document::all();
-// });
+    /*
+    |--------------------------------------------------------------------------
+    | ADMIN — OUTGOING DOCUMENTS
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('admin/outgoing')->group(function () {
+        Route::post('{document}/log', [OutgoingDocumentController::class, 'log'])
+            ->name('admin.outgoing.log');
+
+        Route::post('{document}/transmit', [OutgoingDocumentController::class, 'transmit'])
+            ->name('admin.outgoing.transmit');
+
+        Route::post('{document}/archive', [OutgoingDocumentController::class, 'archive'])
+            ->name('admin.outgoing.archive');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | OFFICE — DOCUMENT INBOX
+    |--------------------------------------------------------------------------
+    */
+    Route::prefix('office/documents')->group(function () {
+        Route::get('/', [DocumentInboxController::class, 'index'])
+            ->name('office.documents.index');
+
+        Route::post('{document}/acknowledge', [DocumentInboxController::class, 'acknowledge'])
+            ->name('office.documents.acknowledge');
+
+        Route::post('{document}/reply', [DocumentInboxController::class, 'prepareReply'])
+            ->name('office.documents.reply');
+    });
 
 
+    /*
+    |--------------------------------------------------------------------------
+    | DOCUMENT - DOWNLOAD FILE
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware(['auth'])->group(function () {
 
-require __DIR__ . '/auth.php';
+        Route::get('/documents/{document}/download', [DocumentFileController::class, 'download'])
+            ->name('documents.download');
+
+        Route::get('/documents/{document}/view', [DocumentFileController::class, 'view'])
+            ->name('documents.view');
+    });
+
+    /*
+    |--------------------------------------------------------------------------
+    | DOCUMENT - PREVIEW ATTACHMENT
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/attachments/{attachment}/preview', [DocumentFileController::class, 'preview'])
+        ->name('attachments.preview')
+        ->middleware('auth');
+});
