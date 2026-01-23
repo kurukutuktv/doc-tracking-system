@@ -2,25 +2,17 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Foundation\Auth\Access\Authorizable;
-use App\Models\Department;
+use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, Authorizable, HasRoles;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'name',
         'last_name',
@@ -34,21 +26,11 @@ class User extends Authenticatable
         'approval_level',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [
@@ -56,6 +38,11 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /* ======================
+       ACCESSORS
+    =======================*/
+
     public function getFullNameAttribute(): string
     {
         $name = "{$this->last_name}, {$this->first_name}";
@@ -74,31 +61,6 @@ class User extends Authenticatable
 
         return trim($name);
     }
-    // App\Models\User.php
-
-    protected function setLastNameAttribute($value)
-    {
-        $this->attributes['last_name'] = strtoupper(trim($value));
-    }
-    protected function setMiddleNameAttribute($value)
-    {
-        if (!$value) {
-            $this->attributes['middle_name'] = null;
-            return;
-        }
-
-        $parts = preg_split('/\s+/', trim($value));
-        $initials = collect($parts)
-            ->map(fn($p) => strtoupper(substr($p, 0, 1)) . '.')
-            ->implode('');
-
-        $this->attributes['middle_name'] = $initials;
-    }
-    protected function setFirstNameAttribute($value)
-    {
-        $this->attributes['first_name'] = ucwords(strtolower(trim($value)));
-    }
-    // App\Models\User.php
 
     public function getSignatureAttribute(): string
     {
@@ -118,6 +80,40 @@ class User extends Authenticatable
 
         return strtoupper($name);
     }
+
+    /* ======================
+       MUTATORS
+    =======================*/
+
+    protected function setLastNameAttribute($value)
+    {
+        $this->attributes['last_name'] = strtoupper(trim($value));
+    }
+
+    protected function setFirstNameAttribute($value)
+    {
+        $this->attributes['first_name'] = ucwords(strtolower(trim($value)));
+    }
+
+    protected function setMiddleNameAttribute($value)
+    {
+        if (!$value) {
+            $this->attributes['middle_name'] = null;
+            return;
+        }
+
+        $parts = preg_split('/\s+/', trim($value));
+        $initials = collect($parts)
+            ->map(fn ($p) => strtoupper(substr($p, 0, 1)) . '.')
+            ->implode('');
+
+        $this->attributes['middle_name'] = $initials;
+    }
+
+    /* ======================
+       RELATIONSHIPS
+    =======================*/
+
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);

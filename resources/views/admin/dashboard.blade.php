@@ -1,11 +1,12 @@
-<!-- @extends('layouts.app') -->
-<x-app-layout>
-    <h1 class="text-2xl font-bold">Admin Dashboard</h1>
-</x-app-layout>
+@php
+    $user = Auth::user();
+    $isAdmin = $user->department && $user->department->code === 'ADM';
+@endphp
 
+@extends('layouts.app')
 @section('content')
-<h1 class="text-2xl font-bold mb-6">Admin Dashboard</h1>
 
+<h1 class="text-2xl font-bold mb-6">{{ $user->name }}</h1>
 <div class="grid grid-cols-5 gap-4 mb-6">
     @foreach([
     'Incoming Today' => $stats['incoming_today'],

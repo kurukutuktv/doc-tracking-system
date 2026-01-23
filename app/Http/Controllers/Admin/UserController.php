@@ -19,26 +19,20 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        $roles = Role::all();
+        $roles = Role::all(); // ✅ THIS IS MISSING RIGHT NOW
 
-        $users = User::with('roles')
-            ->when($request->search, function ($query, $search) {
-                $query->where(function ($q) use ($search) {
-                    $q->where('last_name', 'like', "%{$search}%")
-                        ->orWhere('first_name', 'like', "%{$search}%")
-                        ->orWhere('middle_name', 'like', "%{$search}%")
-                        ->orWhere('email', 'like', "%{$search}%");
-                });
+        $users = User::with('role')
+            ->when($request->role, function ($query) use ($request) {
+                $query->where('role_id', $request->role);
             })
-            ->when($request->role, function ($query, $roleId) {
-                $query->whereHas('roles', fn($q) => $q->where('id', $roleId));
-            })
-            ->orderBy('last_name')
-            ->paginate(10)
-            ->withQueryString();
+            ->get();
 
-        return view('admin.users.index', compact('users', 'roles'));
+        return view('admin.users.index', [
+            'users' => $users,
+            'roles' => $roles, // ✅ MUST BE PASSED
+        ]);
     }
+
 
     /* ---------- CREATE ---------- */
 

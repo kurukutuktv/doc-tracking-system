@@ -8,6 +8,7 @@ use App\Http\Controllers\DocumentFileController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Office\OfficeDashboardController;
 use App\Http\Controllers\Admin\UserManagementController;
+use App\Models\User;
 
 /*
 |--------------------------------------------------------------------------
@@ -122,5 +123,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/office/dashboard', [OfficeDashboardController::class, 'index'])
         ->name('office.dashboard');
 });
+
+Route::middleware(['auth'])
+    ->prefix('admin')
+    ->name('admin.')
+    ->group(function () {
+        Route::resource('users', UserManagementController::class);
+    });
+
 
 require __DIR__ . '/auth.php';

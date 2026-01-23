@@ -2,108 +2,69 @@
 
 namespace App\Policies;
 
-use App\Models\Document;
 use App\Models\User;
+use App\Models\Document;
 
 class DocumentPolicy
 {
     /**
-     * Helper: Check if user belongs to Administrative Office
+     * View document list
+     * Admin: can see all
+     * Office: handled in controller (own docs only)
      */
-    protected function isAdminOffice(User $user): bool
+    public function viewAny(User $user): bool
     {
-        return $user->department
-            && $user->department->code === 'ADM';
-    }
-
-    /* =========================================================
-       ADMINISTRATIVE OFFICE ACTIONS
-       ========================================================= */
-
-    /**
-     * Receive / create incoming document
-     */
-    public function receive(User $user): bool
-    {
-        return $this->isAdminOffice($user);
+        return $user->hasRole('admin') || $user->hasRole('office');
     }
 
     /**
-     * Log & stamp document (generate control number)
-     */
-    public function log(User $user, Document $document): bool
-    {
-        return $this->isAdminOffice($user)
-            && $document->status->code === 'RECEIVED';
-    }
-
-    /**
-     * Forward document to concerned office
-     */
-    public function forward(User $user, Document $document): bool
-    {
-        return $this->isAdminOffice($user)
-            && $document->status->code === 'LOGGED';
-    }
-
-    /**
-     * Transmit outgoing document
-     */
-    public function transmit(User $user, Document $document): bool
-    {
-        return $this->isAdminOffice($user)
-            && $document->direction === 'OUTGOING'
-            && $document->status->code === 'LOGGED';
-    }
-
-    /**
-     * Archive document (FINAL STATE)
-     */
-    public function archive(User $user, Document $document): bool
-    {
-        return $this->isAdminOffice($user)
-            && $document->status->code === 'TRANSMITTED';
-    }
-
-    /* =========================================================
-       CONCERNED OFFICE ACTIONS
-       ========================================================= */
-
-    /**
-     * View document forwarded to their office
+     * View a single document
+     * Admin: any document
+     * Office: only own documents
      */
     public function view(User $user, Document $document): bool
     {
-        return $user->department_id === $document->current_office_id;
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+
+        return $document->created_by === $user->id;
     }
 
     /**
-     * Acknowledge receipt
+     * Create / submit documents
+     * Office users only
+     */
+    public function create(User $user): bool
+    {
+        return $user->hasRole('office');
+    }
+
+    /**
+     * Acknowledge memo
+     * Admin only
+     * Must be a memo
      */
     public function acknowledge(User $user, Document $document): bool
     {
-        return $user->department_id === $document->current_office_id
-            && $document->status->code === 'FORWARDED';
+        return $user->hasRole('admin') && $document->is_memo;
     }
 
     /**
-     * Prepare reply (create outgoing document)
+     * Reject document
+     * Admin only
      */
-    public function prepareReply(User $user, Document $document): bool
+    public function reject(User $user, Document $document): bool
     {
-        return $user->department_id === $document->current_office_id
-            && in_array($document->status->code, ['ACKNOWLEDGED', 'FOR_REPLY']);
+        return $user->hasRole('admin');
     }
 
-    /* =========================================================
-       COMMON RULES
-       ========================================================= */
-
     /**
-     * Prevent edits on archived documents
+     * Delete document
+     * Admin only
      */
-    public function update(User $user, Document $document): bool
+    public function delete(User $user, Document $document): bool
     {
-        return $document->status->code !== 'ARCHIVED';
+        return $user->hasRole('admin');
     }
 }

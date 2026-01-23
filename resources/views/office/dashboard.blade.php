@@ -1,10 +1,11 @@
-<!-- @extends('layouts.app') -->
-<x-app-layout>
-    <h1 class="text-2xl font-bold">Admin Dashboard</h1>
-</x-app-layout>
+@php
+    $user = Auth::user();
+    $isAdmin = $user->department && $user->department->code === 'ADM';
+@endphp
 
+@extends('layouts.app')
 @section('content')
-<h1 class="text-2xl font-bold mb-6">Office Dashboard</h1>
+<h1 class="text-2xl font-bold mb-6">{{ $user->name }}</h1>
 
 <div class="grid grid-cols-3 gap-4 mb-6">
     <div class="bg-white p-4 rounded shadow text-center">
